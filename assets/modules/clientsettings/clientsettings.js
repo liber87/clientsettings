@@ -7,6 +7,7 @@ jQuery(document).on('click','.add_tab',function(){
 		if (i>0) jQuery(this).remove();
 		i = 1;
 	});
+	get_sort();
 	reset_index();
 	
 });
@@ -18,7 +19,7 @@ jQuery(document).on('click','.add_field',function(){
 	jQuery('.news_str').children('td').each(function() {
 		jQuery(this).children('input,select').val('');
 	});
-	jQuery('.news_str').removeClass('.news_str');	
+	jQuery('.news_str').removeClass('.news_str');		
 	reset_index()
 });
 
@@ -32,18 +33,21 @@ jQuery(document).on('click','.remove_tab',function(){
 	reset_index();
 });
 
-jQuery('.sort-str').sortable({
-  stop: function( event, ui ) {reset_index();}
-});
-
-jQuery('.tab-settings').sortable({
-  stop: function( event, ui ) {reset_index();}
-});
-
+get_sort();
 
 function save_settings() {
 	documentDirty = false;
 	jQuery(document.settings).submit();
+}
+
+function get_sort()
+{
+	jQuery('.sort-str').each(function(i){	
+		new Sortable(document.getElementsByClassName('sort-str')[i],{onEnd: function(){ reset_index(); }});
+	});
+	jQuery('.tab-settings').each(function(i){	
+		new Sortable(document.getElementsByClassName('tab-settings')[i],{onEnd: function(){ reset_index(); }});
+	});
 }
 
 function reset_index()
@@ -83,5 +87,5 @@ function reset_index()
 		
 		ind = ind + 10;
 		
-	});
+	});	
 }
