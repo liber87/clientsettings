@@ -1,224 +1,224 @@
 <?php
 	
-if (IN_MANAGER_MODE != 'true' || empty($modx) || !($modx instanceof DocumentParser)) {
-	die('Please use the MODX Content Manager instead of accessing this file directly.');
-}
-
-$managerPath = $modx->getManagerPath();
+	if (IN_MANAGER_MODE != 'true' || empty($modx) || !($modx instanceof DocumentParser)) {
+		die('Please use the MODX Content Manager instead of accessing this file directly.');
+	}
+	global $_lang;	
+	$managerPath = $modx->getManagerPath();
 	
-if (!$modx->hasPermission('exec_module')) {
-	$modx->sendRedirect('index.php?a=106');
-}
+	if (!$modx->hasPermission('exec_module')) {
+		$modx->sendRedirect('index.php?a=106');
+	}
 	
-if (!is_array($modx->event->params)) {
-	$modx->event->params = [];
-}
+	if (!is_array($modx->event->params)) {
+		$modx->event->params = [];
+	}
 	
-if (!function_exists('renderFormElement')) {
-	include_once(MODX_MANAGER_PATH . 'includes/tmplvars.commands.inc.php');
-	include_once(MODX_MANAGER_PATH . 'includes/tmplvars.inc.php');
-}
+	if (!function_exists('renderFormElement')) {
+		include_once(MODX_MANAGER_PATH . 'includes/tmplvars.commands.inc.php');
+		include_once(MODX_MANAGER_PATH . 'includes/tmplvars.inc.php');
+	}
 	
-if (isset($_REQUEST['stay'])) {
-	$_SESSION['stay'] = $_REQUEST['stay'];
-	} else if (isset($_SESSION['stay'])) {
-	$_REQUEST['stay'] = $_SESSION['stay'];
-}
+	if (isset($_REQUEST['stay'])) {
+		$_SESSION['stay'] = $_REQUEST['stay'];
+		} else if (isset($_SESSION['stay'])) {
+		$_REQUEST['stay'] = $_SESSION['stay'];
+	}
 	
-$stay = isset($_REQUEST['stay']) ? $_REQUEST['stay'] : '';
+	$stay = isset($_REQUEST['stay']) ? $_REQUEST['stay'] : '';
 	
-$menu = isset($_GET['menu']) && is_string($_GET['menu']) ? $_GET['menu'] : 'default';
+	$menu = isset($_GET['menu']) && is_string($_GET['menu']) ? $_GET['menu'] : 'default';
 	
-$tabs = [];
+	$tabs = [];
 	
-foreach (glob(__DIR__ . '/config/*.php') as $file) {
-	$tab = include $file;
-	
-	if (!empty($tab) && is_array($tab)) {
-		$tabMenu = isset($tab['menu']['alias']) ? $tab['menu']['alias'] : 'default';
+	foreach (glob(__DIR__ . '/config/*.php') as $file) {
+		$tab = include $file;
 		
-		if ($tabMenu == $menu) {
-			$tabs[pathinfo($file, PATHINFO_FILENAME)] = $tab;
+		if (!empty($tab) && is_array($tab)) {
+			$tabMenu = isset($tab['menu']['alias']) ? $tab['menu']['alias'] : 'default';
+			
+			if ($tabMenu == $menu) {
+				$tabs[pathinfo($file, PATHINFO_FILENAME)] = $tab;
+			}
 		}
 	}
-}
 	
 	
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-	$fields = [];
+	if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+		$fields = [];
 		
-	foreach ($tabs as $tab) {
-		foreach (array_keys($tab['settings']) as $field) {
-			$postfield = 'tv' . $field;
-			
-			$type = $tab['settings'][$field]['type'];
-			
-			if (isset($_POST[$postfield])) {
-				$value = $_POST[$postfield];
-				} else if (isset($tab['settings'][$field]['default_value'])) {
-				$value = $tab['settings'][$field]['default_value'];
-				} else {
-				$value = '';
-			}
-			
-			switch ($type) {
-				case 'url':
-                   if ($_POST[$postfield . '_prefix'] != '--') {
-                       $value = str_replace(array (
-					"feed://",
-					"ftp://",
-					"http://",
-					"https://",
-					"mailto:"
-                       ), "", $value);
-                       $value = $_POST[$postfield . '_prefix'] . $value;
-				}
-                   break;
+		foreach ($tabs as $tab) {
+			foreach (array_keys($tab['settings']) as $field) {
+				$postfield = 'tv' . $field;
 				
-				case 'custom_tv:multitv': {
-					$json = @json_decode($value);
-					
-					if (isset($json->fieldValue)) {
-						$value = json_encode($json->fieldValue, JSON_UNESCAPED_UNICODE);
+				$type = $tab['settings'][$field]['type'];
+				
+				if (isset($_POST[$postfield])) {
+					$value = $_POST[$postfield];
+					} else if (isset($tab['settings'][$field]['default_value'])) {
+					$value = $tab['settings'][$field]['default_value'];
+					} else {
+					$value = '';
+				}
+				
+				switch ($type) {
+					case 'url':
+                    if ($_POST[$postfield . '_prefix'] != '--') {
+                        $value = str_replace(array (
+						"feed://",
+						"ftp://",
+						"http://",
+						"https://",
+						"mailto:"
+                        ), "", $value);
+                        $value = $_POST[$postfield . '_prefix'] . $value;
 					}
-					break;
+                    break;
+					
+					case 'custom_tv:multitv': {
+						$json = @json_decode($value);
+						
+						if (isset($json->fieldValue)) {
+							$value = json_encode($json->fieldValue, JSON_UNESCAPED_UNICODE);
+						}
+						break;
+					}
+					
+					default:
+                    if (is_array($value)) {
+                        $value = implode("||", $value);
+					}
+                    break;
 				}
 				
-				default:
-                   if (is_array($value)) {
-                       $value = implode("||", $value);
-				}
-                   break;
+				$fields[$field] = [$params['prefix'] . $field, $value];
+			}
+		}
+		
+		$modx->invokeEvent('OnBeforeClientSettingsSave', [
+        'fields' => &$fields,
+		]);
+		
+		
+		if (count($_POST['settings']))
+		{			
+			$files = new RecursiveDirectoryIterator(MODX_BASE_PATH."assets/modules/clientsettings/config/");
+			foreach($files as $file) unlink($file->getRealPath());
+			
+			
+			foreach($_POST['settings'] as $key => $val)
+			{
+				$conf = array();
+				$conf['caption'] = $val['caption'] ? $val['caption'] : 'Untitled tab';
+				$conf['introtext']  = $val['introtext'];
+				unset($val['caption']);
+				unset($val['introtext']);
+				foreach($val as $set)
+				{
+					$f = $set['field'];
+					if ($f)
+					{
+						unset($set['field']);
+						$conf['settings'][$f] = $set;
+					}
+				}				
+				
+				$text = "<?php".PHP_EOL.'return '.var_export($conf,1).';';		
+				
+				
+				$f=fopen(MODX_BASE_PATH."assets/modules/clientsettings/config/".$key.".php",'w');
+				fwrite($f,$text);
+				fclose($f);
+			}			
+			
+		}			
+		if (!empty($fields)) {
+			$modx->db->query("REPLACE INTO " . $modx->getFullTableName('system_settings') . " (setting_name, setting_value) VALUES " . implode(', ', array_map(function($row) use ($modx) {
+				return "('" . $modx->db->escape($row[0]) . "', '" . $modx->db->escape($row[1]) . "')";
+			}, $fields)));
+		}
+		
+		$modx->invokeEvent('OnDocFormSave', [
+        'mode' => 'upd',
+        'id'   => 0,
+		]);
+		
+		$modx->invokeEvent('OnClientSettingsSave', [
+        'fields' => $fields,
+		]);
+		
+		$modx->clearCache('full');
+		
+		if ($stay == 2) {
+			$modx->sendRedirect('index.php?a=112&id=' . $_GET['id'] . '&menu=' . $menu);
+			} else {
+			$modx->sendRedirect('index.php?a=7&r=10');
+		}
+	}
+	
+	global $content, $_style, $lastInstallTime;
+	$content['richtext'] = 1;
+	
+	if (!isset($_COOKIE['MODX_themeMode'])) {
+		$_COOKIE['MODX_themeMode'] = '';
+	}
+	
+	$userlang    = $modx->getConfig('manager_language');
+	$_customlang = include MODX_BASE_PATH . 'assets/modules/clientsettings/lang.php';
+	$title       = isset($_customlang[$userlang]) ? $_customlang[$userlang] : reset($_customlang);
+	$_lang       = [];
+	
+	include MODX_MANAGER_PATH . 'includes/lang/' . $userlang . '.inc.php';
+	
+	$richtextinit  = [];
+	$defaulteditor = $modx->getconfig('which_editor');
+	
+	$richtextparams = [
+    'editor'   => $defaulteditor,
+    'elements' => [],
+    'options'  => [],
+	];
+	
+	foreach ($tabs as $tab) {
+		foreach ($tab['settings'] as $field => $options) {
+			if ($options['type'] != 'richtext') {
+				continue;
 			}
 			
-			$fields[$field] = [$params['prefix'] . $field, $value];
-		}
-	}
-	
-	$modx->invokeEvent('OnBeforeClientSettingsSave', [
-       'fields' => &$fields,
-	]);
-	
-	
-	if (count($_POST['settings']))
-	{			
-		$files = new RecursiveDirectoryIterator(MODX_BASE_PATH."assets/modules/clientsettings/config/");
-		foreach($files as $file) unlink($file->getRealPath());
-		
-		
-		foreach($_POST['settings'] as $key => $val)
-		{
-			$conf = array();
-			$conf['caption'] = $val['caption'] ? $val['caption'] : 'Untitled tab';
-			$conf['introtext']  = $val['introtext'];
-			unset($val['caption']);
-			unset($val['introtext']);
-			foreach($val as $set)
-			{
-				$f = $set['field'];
-				if ($f)
-				{
-					unset($set['field']);
-					$conf['settings'][$f] = $set;
-				}
-			}				
+			$editor    = $defaulteditor;
+			$tvoptions = [];
 			
-			$text = "<?php".PHP_EOL.'return '.var_export($conf,1).';';		
+			if (!empty($options['options'])) {
+				$tvoptions = array_merge($tvoptions, $options['options']);
+			}
 			
+			if (!empty($options['elements'])) {
+				$tvoptions = array_merge($tvoptions, $modx->parseProperties($options['elements']));
+			}
 			
-			$f=fopen(MODX_BASE_PATH."assets/modules/clientsettings/config/".$key.".php",'w');
-			fwrite($f,$text);
-			fclose($f);
-		}			
-		
-	}			
-	if (!empty($fields)) {
-		$modx->db->query("REPLACE INTO " . $modx->getFullTableName('system_settings') . " (setting_name, setting_value) VALUES " . implode(', ', array_map(function($row) use ($modx) {
-			return "('" . $modx->db->escape($row[0]) . "', '" . $modx->db->escape($row[1]) . "')";
-			}, $fields)));
-	}
-		
-	$modx->invokeEvent('OnDocFormSave', [
-       'mode' => 'upd',
-       'id'   => 0,
-	]);
-		
-	$modx->invokeEvent('OnClientSettingsSave', [
-       'fields' => $fields,
-	]);
-	
-	$modx->clearCache('full');
-	
-	if ($stay == 2) {
-		$modx->sendRedirect('index.php?a=112&id=' . $_GET['id'] . '&menu=' . $menu);
-		} else {
-		$modx->sendRedirect('index.php?a=7&r=10');
-	}
-}
-	
-global $content, $_style, $lastInstallTime, $_lang;
-$content['richtext'] = 1;
-	
-if (!isset($_COOKIE['MODX_themeMode'])) {
-	$_COOKIE['MODX_themeMode'] = '';
-}
-	
-$userlang    = $modx->getConfig('manager_language');
-$_customlang = include MODX_BASE_PATH . 'assets/modules/clientsettings/lang.php';
-$title       = isset($_customlang[$userlang]) ? $_customlang[$userlang] : reset($_customlang);
-$_lang       = [];
-	
-include MODX_MANAGER_PATH . 'includes/lang/' . $userlang . '.inc.php';
-
-$richtextinit  = [];
-$defaulteditor = $modx->getconfig('which_editor');
-	
-$richtextparams = [
-   'editor'   => $defaulteditor,
-   'elements' => [],
-   'options'  => [],
-];
-
-foreach ($tabs as $tab) {
-	foreach ($tab['settings'] as $field => $options) {
-		if ($options['type'] != 'richtext') {
-			continue;
+			if (!empty($tvoptions) && isset($tvoptions['editor'])) {
+				$editor = $tvoptions['editor'];
+			};
+			
+			$richtextparams['elements'][] = 'tv' . $field;
+			$richtextparams['options']['tv' . $field] = $tvoptions;
 		}
-		
-		$editor    = $defaulteditor;
-		$tvoptions = [];
-		
-		if (!empty($options['options'])) {
-			$tvoptions = array_merge($tvoptions, $options['options']);
-		}
-		
-		if (!empty($options['elements'])) {
-			$tvoptions = array_merge($tvoptions, $modx->parseProperties($options['elements']));
-		}
-		
-		if (!empty($tvoptions) && isset($tvoptions['editor'])) {
-			$editor = $tvoptions['editor'];
-		};
-		
-		$richtextparams['elements'][] = 'tv' . $field;
-		$richtextparams['options']['tv' . $field] = $tvoptions;
 	}
-}
 	
-if (!empty($richtextparams)) {
-	$richtextinit = $modx->invokeEvent('OnRichTextEditorInit', $richtextparams);
-	
-	if (is_array($richtextinit)) {
-		$richtextinit = implode($richtextinit);
+	if (!empty($richtextparams)) {
+		$richtextinit = $modx->invokeEvent('OnRichTextEditorInit', $richtextparams);
+		
+		if (is_array($richtextinit)) {
+			$richtextinit = implode($richtextinit);
+		}
 	}
-}
 	
-$picker = [
-   'yearOffset' => $modx->getConfig('datepicker_offset'),
-   'format'     => $modx->getConfig('datetime_format') . ' hh:mm:00',
-];
+	$picker = [
+    'yearOffset' => $modx->getConfig('datepicker_offset'),
+    'format'     => $modx->getConfig('datetime_format') . ' hh:mm:00',
+	];
 	
-include_once MODX_MANAGER_PATH . 'includes/header.inc.php';
+	include_once MODX_MANAGER_PATH . 'includes/header.inc.php';
 	
 ?>
 
@@ -396,7 +396,7 @@ include_once MODX_MANAGER_PATH . 'includes/header.inc.php';
 											<input class="form-control" name="settings[<?=$key;?>][<?=$i;?>][caption]" value="<?=$value['caption'];?>">
 										</td>
 										<td class="tableHeader">											
-											<select name="type" size="1" class="form-control" name="settings[<?=$key;?>][<?=$i;?>][type]">
+											<select size="1" class="form-control" name="settings[<?=$key;?>][<?=$i;?>][type]">
 												<optgroup label="Standard Type">
 													<option value="text" <?= ($value['type'] == '' || $value['type'] == 'text' ? "selected='selected'" : "") ?>>Text</option>
 													<option value="rawtext" <?= ($value['type'] == 'rawtext' ? "selected='selected'" : "") ?>>Raw Text (deprecated)</option>
@@ -478,8 +478,9 @@ include_once MODX_MANAGER_PATH . 'includes/header.inc.php';
 		</script>
 		<script src="<?= $jsUrls['mm']['url'] ?>"></script>
 		<script src="<?= $jsUrls['ddTools']['url'] ?>"></script>
-		<script src="<?= MODX_SITE_URL . 'assets/plugins/managermanager/widgets/showimagetvs/jquery.ddMM.mm_widget_showimagetvs.js' ?>"></script>
-		<script src="<?= MODX_SITE_URL . 'assets/modules/clientsettings/clientsettings.js' ?>"></script>
+		<script src="<?= MODX_SITE_URL . 'assets/plugins/managermanager/widgets/showimagetvs/jquery.ddMM.mm_widget_showimagetvs.js' ?>"></script>	
+		<script src="<?= MODX_SITE_URL . 'assets/js/sortable/Sortable.min.js' ?>"></script>			
+		<script src="<?= MODX_SITE_URL . 'assets/modules/clientsettings/clientsettings.js' ?>"></script>		
 		
 		<script>
 			<?= initJQddManagerManager(); ?>
