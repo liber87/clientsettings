@@ -3,7 +3,7 @@
 if (IN_MANAGER_MODE != 'true' || empty($modx) || !($modx instanceof DocumentParser)) {
 	die('Please use the MODX Content Manager instead of accessing this file directly.');
 }
-global $_lang;	
+
 $managerPath = $modx->getManagerPath();
 	
 if (!$modx->hasPermission('exec_module')) {
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 	}
 }
 	
-global $content, $_style, $lastInstallTime;
+global $content, $_style, $lastInstallTime, $_lang;
 $content['richtext'] = 1;
 	
 if (!isset($_COOKIE['MODX_themeMode'])) {
