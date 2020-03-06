@@ -19,7 +19,7 @@ jQuery(document).on('click','.add_field',function(){
 	jQuery('.news_str').children('td').each(function() {
 		jQuery(this).children('input,select').val('');
 	});
-	jQuery('.news_str').removeClass('.news_str');		
+	jQuery('.news_str').removeClass('news_str');		
 	reset_index()
 });
 
